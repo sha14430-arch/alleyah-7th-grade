@@ -50,3 +50,16 @@ a{color:var(--accent,#4f8cff)}
 .pg-answer p{margin:.2rem 0}
 .pg-work{margin:.1rem 0 0;padding-left:1.2rem;font-size:.95rem}
 .rep{text-decoration:overline}
+/* Textbook Study Guide */
+.sg-chapter-nav{display:flex;justify-content:space-between;flex-wrap:wrap;gap:.5rem;margin:.5rem 0}
+.sg-chapter-nav a{background:#f3f0ff;color:#4a3aa8;text-decoration:none;font-weight:bold;padding:.35rem .9rem;border-radius:999px}
+.sg-chapter-nav a:hover,.sg-chapter-nav a:focus{background:#4a3aa8;color:#fff}
+.sg-toc,.sg-chapters{padding-left:1.2rem;margin:.25rem 0}
+.sg-toc li,.sg-chapters li{margin:.2rem 0}
+.sg-section h3{margin:1rem 0 .3rem;color:#4a3aa8}
+.sg-vocab{margin:.2rem 0;padding-left:1.2rem}
+.sg-example{margin:.75rem 0;padding:.6rem .9rem;background:#f3f0ff;border-radius:12px}
+.sg-example h3{margin-top:.2rem}
+.sg-tag{display:inline-block;font-size:.75rem;vertical-align:middle;background:#7a5cff;color:#fff;padding:.1rem .55rem;border-radius:999px}
+.sg-top{text-align:right;margin:.5rem 0 0;font-size:.9rem}
+.sg-chapters .sg-sections{display:block;font-size:.9rem;color:#666}
