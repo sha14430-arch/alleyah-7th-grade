@@ -14,6 +14,11 @@
 <main class="container">
 <section class="hero"><h1>🔢 Math</h1>
 <p>Practice sets for <strong>Chapter 2: Rational Numbers</strong>. Try the problems first and show all your work, then check the answer keys.</p></section>
+<section class="panel math-helper"><h2>🧮 Math Helper</h2>
+<p>Type a math expression and press <strong>Solve</strong> (or Enter). Works with fractions, mixed numbers (<code>2 1/4</code>), decimals, negatives, <code>x</code> or <code>*</code>, <code>÷</code> or <code>/</code>, and <code>^</code> for powers. To convert a decimal, just type it (like <code>0.45</code>) to see it as a fraction too.</p>
+<div class="mh-row"><label for="mh-input" class="sr-only">Math expression</label><input id="mh-input" type="text" inputmode="text" autocomplete="off" placeholder="e.g. -5/6 + (-1/9)"><button id="mh-solve" type="button">Solve</button></div>
+<div id="mh-result" aria-live="polite"></div>
+<p class="note">Note: this solves math expressions, not word problems. Turn the word problem into an expression first!</p></section>
 <section class="panel"><h2>Practice</h2><ul class="files">
 <li class="file"><a href="challenge_questions.pdf" target="_blank" rel="noopener">📄 Chapter 2 Challenge Questions</a><p>10 challenge questions on rational numbers: converting fractions and decimals, repeating decimals, and operations with positive and negative numbers.</p></li>
 <li class="file"><a href="word_problems_20.pdf" target="_blank" rel="noopener">📄 20 Rational Number Word Problems</a><p>20 real-world word problems (elevations, temperatures, money, and more) using fractions, decimals, and negative numbers.</p></li>
@@ -25,5 +30,7 @@
 </ul></section>
 </main>
 <footer class="site-footer">Made for Alleyah · 7th Grade</footer>
+<script src="https://cdn.jsdelivr.net/npm/mathjs@13/lib/browser/math.js"></script>
+<script src="math-helper.js"></script>
 </body>
 </html>

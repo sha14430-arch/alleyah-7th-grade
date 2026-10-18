@@ -25,3 +25,11 @@ a{color:var(--accent,#4f8cff)}
 .note{font-style:italic;color:#7a6a00}
 .coming-soon{text-align:center;background:#f3f0ff;border:3px dashed var(--accent);border-left-width:3px}
 .site-footer{text-align:center;padding:1rem;color:#888;font-size:.9rem}
+.mh-row{display:flex;gap:.5rem;flex-wrap:wrap}
+.mh-row input{flex:1;min-width:200px;font:inherit;font-size:1.1rem;padding:.5rem .8rem;border:2px solid #ddd;border-radius:12px}
+.mh-row input:focus{outline:none;border-color:var(--accent,#4f8cff)}
+.mh-row button{font:inherit;font-weight:bold;font-size:1.05rem;padding:.5rem 1.2rem;border:0;border-radius:999px;background:var(--accent,#4f8cff);color:#fff;cursor:pointer}
+.mh-row button:hover,.mh-row button:focus{background:#4a3aa8}
+#mh-result p{margin:.4rem 0;font-size:1.1rem}
+.mh-error{color:#c0392b}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
