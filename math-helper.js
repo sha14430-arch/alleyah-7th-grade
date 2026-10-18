@@ -13,7 +13,7 @@
   function gcdBig(a, b) { while (b) { var t = a % b; a = b; b = t; } return a; }
   function solve(input, math) {
     var expr = prep(input), f;
-    var fm = math.create(math.all, { number: 'Fraction' });
+    var fm = (math.all ? math.create(math.all, { number: 'Fraction' }) : math.create({ number: 'Fraction' }));
     try { f = fm.evaluate(expr); } catch (e) {
       // e.g. fractional powers: fall back to plain numbers
       var v = math.evaluate(expr);
