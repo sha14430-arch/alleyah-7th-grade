@@ -1375,7 +1375,7 @@
   }
   function anFix(s) { return s.replace(/(^|[^\w$\u2019'])([Aa]) (\$?)(\d[\d,]*(?:\.\d+)?)/g, function (m0, pre, a, dol, n) { var d = n.split('.')[0].replace(/,/g, ''), an = d.charAt(0) === '8' || ((d.length === 2 || d.length === 5) && (d.slice(0, 2) === '11' || d.slice(0, 2) === '18')); return pre + (an ? a + 'n' : a) + ' ' + dol + n; }); }
   function tidy(p) { var f = function (s) { return anFix(String(s).replace(/\.\./g, '.')); }; p.q = f(p.q); p.a = f(p.a); p.work = (p.work || []).map(f); return p; }
-  var api = { GEN: GEN, BANK: BANK, keys: function () { return Object.keys(GEN); }, generate: generate,
+  var api = { GEN: GEN, BANK: BANK, keys: function () { return Object.keys(GEN); }, generate: generate, mk: mk, tidy: tidy, bankItem: B,
     F: F, gcd: gcd, add: add, sub: sub, mul: mul, div: div, fmtFrac: ff, fmtMixed: fm, fmtDec: fd };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.SectionGenerators = api;
