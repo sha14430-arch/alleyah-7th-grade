@@ -20,7 +20,10 @@
     timerBox.addEventListener('change', function () { clock.hidden = !timerBox.checked; if (timerBox.checked && !graded) { if (!t0) t0 = Date.now(); tick = tick || setInterval(function () { clock.textContent = fmtTime(Date.now() - t0); }, 1000); } else if (!timerBox.checked) stopClock(); });
     function render() {
       testNo++;
-      try { items = CT.buildTest(ch, keys); } catch (e) { msg.textContent = 'Something went wrong making the test. Press New test.'; return; }
+      try { items = CT.buildTest(ch, keys); } catch (e) {
+        var stale = !window.SectionGenerators || typeof window.SectionGenerators.mk !== 'function' || !window.ChapterTests;
+        msg.textContent = stale ? 'Your browser loaded an old copy of the question files. Do a hard refresh (Ctrl+Shift+R, or Cmd+Shift+R on a Mac) and the test will load.' : 'Something went wrong making the test. Press New test.';
+        if (window.console) console.error('Practice test error:', e); return; }
       list.innerHTML = ''; result.hidden = true; result.innerHTML = ''; graded = false; submit.disabled = false; msg.textContent = '';
       root.classList.remove('pt-done');
       items.forEach(function (it, i) {
