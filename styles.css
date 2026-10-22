@@ -108,3 +108,22 @@ a{color:var(--accent,#4f8cff)}
   .pt-test:not(.pt-done) .pt-input::placeholder{color:transparent}
   details{display:block}details>*{display:block}
 }
+/* Revision Plan & Tips */
+.rv-panel{border-left-color:#2ecc71;background:#f4fdf7}
+.rv-block{margin:.6rem 0;border-top:1px dashed #cfe9d9;padding-top:.4rem}
+.rv-block>summary{cursor:pointer;list-style:none}
+.rv-block>summary::-webkit-details-marker{display:none}
+.rv-block>summary h3{display:inline;margin:0;color:#4a3aa8}
+.rv-block>summary::after{content:" ▾";color:#4a3aa8}
+.rv-block:not([open])>summary::after{content:" ▸"}
+.rv-block h3{color:#4a3aa8}
+.rv-block h4{margin:.7rem 0 .2rem;color:#2b2b3a}
+.rv-plan,.rv-check,.rv-mistakes,.rv-tips,.rv-warm{padding-left:1.3rem;margin:.3rem 0}
+.rv-plan li,.rv-mistakes li,.rv-tips li{margin:.35rem 0}
+.rv-time{display:inline-block;font-size:.8rem;font-weight:bold;background:#7a5cff;color:#fff;padding:.05rem .55rem;border-radius:999px;margin-right:.2rem}
+.rv-check{list-style:none;padding-left:.2rem}
+.rv-check li{position:relative;padding-left:1.6rem;margin:.25rem 0}
+.rv-check li::before{content:"☐";position:absolute;left:0;color:#2ecc71;font-weight:bold}
+.rv-ans{display:inline-block;margin-left:.3rem}
+.rv-ans summary{cursor:pointer;color:#4a3aa8;font-size:.9rem}
+@media print{.rv-block{display:block}.rv-block>*{display:block}}
