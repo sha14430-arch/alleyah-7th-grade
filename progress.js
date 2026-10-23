@@ -1,6 +1,7 @@
-/* progress.js: practice-test scores, points and the avatar shop for The Tutor.
-   Everything is stored in this browser's localStorage (key "alleyahHub.progress.v1"), so progress is
-   per device and per browser; use Export/Import to move it. Works in the browser (window.Progress) and node.
+/* progress.js: profiles, practice-test scores, points and the avatar shop for The Tutor.
+   Each profile's progress is kept in this browser's localStorage (key "alleyahHub.progress.v1.u.<username>") and synced
+   to that profile's record on restful-api.dev. The old single-user key "alleyahHub.progress.v1" is only read to migrate it.
+   Works in the browser (window.Progress) and node.
    GENERATED from study-guide-src/progress-src; edit there. */
 (function (root) {
   'use strict';
@@ -10,7 +11,7 @@
   function grade(pct) { return pct >= 90 ? 'A' : pct >= 80 ? 'B' : pct >= 70 ? 'C' : pct >= 60 ? 'D' : 'F'; }
   function pointsFor(pct) { return pct >= 100 ? 50 : pct >= 90 ? 30 : pct >= 80 ? 20 : pct >= 70 ? 10 : pct >= 60 ? 5 : 2; }
   var A_BONUS = 10;
-  function fresh() { return { v: 1, results: [], points: 0, earned: 0, spent: 0, awarded: {}, aBonus: {}, owned: {}, equipped: {}, base: 'girl', eqAt: 0 }; }
+  function fresh() { return { v: 1, results: [], points: 0, earned: 0, spent: 0, awarded: {}, aBonus: {}, owned: {}, equipped: {}, base: 'girl', eqAt: 0, profile: { name: '', grade: '', at: 0 }, resetAt: '' }; }
   /* points are always DERIVED: earned = sum of each test's base points + one +10 A-bonus per chapter (first A in date order);
      spent = sum of prices of owned items; balance = earned - spent (never below 0). Merging devices can't double count. */
   function recompute(s) {
@@ -20,21 +21,27 @@
     s.spent = Object.keys(s.owned).reduce(function (a, k) { return a + (ITEM[k] ? ITEM[k].price : 0); }, 0);
     s.points = Math.max(0, s.earned - s.spent); return s;
   }
-  /* merge two states (devices): union of results by test id, union of owned items, latest avatar choice wins */
+  /* merge two states (devices): union of results by test id, union of owned items, latest avatar choice and latest
+     profile edit win. A reset (resetAt) on one device drops older results and items that a stale device still has. */
   function merge(a, b) {
     a = sanitize(a); b = sanitize(b); var m = fresh(), seen = {};
-    a.results.concat(b.results).forEach(function (r) { if (!seen[r.id]) { seen[r.id] = 1; m.results.push(r); } });
-    [a, b].forEach(function (x) { Object.keys(x.awarded).forEach(function (k) { m.awarded[k] = true; }); Object.keys(x.owned).forEach(function (k) { m.owned[k] = true; }); });
-    var w = b.eqAt > a.eqAt ? b : a; m.equipped = Object.assign({}, w.equipped); m.base = w.base; m.eqAt = w.eqAt;
+    m.resetAt = a.resetAt > b.resetAt ? a.resetAt : b.resetAt;
+    a.results.concat(b.results).forEach(function (r) { if (!seen[r.id] && !(m.resetAt && (r.at || r.date) < m.resetAt)) { seen[r.id] = 1; m.results.push(r); } });
+    [a, b].forEach(function (x) { var stale = x.resetAt < m.resetAt; Object.keys(x.awarded).forEach(function (k) { if (!stale || seen[k]) m.awarded[k] = true; }); if (!stale) Object.keys(x.owned).forEach(function (k) { m.owned[k] = true; }); });
+    var w = b.resetAt < m.resetAt ? a : a.resetAt < m.resetAt ? b : b.eqAt > a.eqAt ? b : a; m.equipped = {}; Object.keys(w.equipped).forEach(function (k) { if (m.owned[w.equipped[k]]) m.equipped[k] = w.equipped[k]; }); m.base = w.base; m.eqAt = w.eqAt;
+    m.profile = Object.assign({}, b.profile.at > a.profile.at ? b.profile : a.profile);
     return recompute(m);
   }
+  var GRADES = ['4', '5', '6', '7', '8', '9', '10', '11', '12', 'other'];
+  function cleanName(x) { return String(x == null ? '' : x).replace(/[\u0000-\u001f<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, 30); }
   function int(x, lo, hi) { x = Math.floor(Number(x)); if (!isFinite(x)) x = lo; return Math.max(lo, Math.min(hi, x)); }
   /* clean any loaded/imported object into a valid state (never negative, only known items) */
   function sanitize(o) {
     var s = fresh(); if (!o || typeof o !== 'object') return s;
     (Array.isArray(o.results) ? o.results : []).forEach(function (r) {
-      if (!r || typeof r !== 'object') return; var ch = int(r.ch, 0, 99), total = int(r.total, 1, 100), score = int(r.score, 0, total);
+      if (!r || typeof r !== 'object') return; var ch = int(r.ch, 0, 199), total = int(r.total, 1, 100), score = int(r.score, 0, total);
       if (ch < 1) return; s.results.push({ id: String(r.id || ('imp' + s.results.length)).slice(0, 60), ch: ch, score: score, total: total, pct: percent(score, total), date: String(r.date || '').slice(0, 40), base: r.base === undefined ? pointsFor(percent(score, total)) : int(r.base, 0, 50), pts: 0 });
+      if (typeof r.at === 'string' && /^\d{4}-\d\d-\d\dT[\d:.]+Z$/.test(r.at)) s.results[s.results.length - 1].at = r.at; /* when it was restored from a backup (outlives an earlier reset) */
     });
     s.eqAt = int(o.eqAt, 0, 1e14);
     s.results.forEach(function (r) { s.awarded[r.id] = true; });
@@ -42,6 +49,8 @@
     if (o.owned && typeof o.owned === 'object') Object.keys(o.owned).forEach(function (k) { if (ITEM[k] && o.owned[k]) s.owned[k] = true; });
     if (o.equipped && typeof o.equipped === 'object') Object.keys(o.equipped).forEach(function (slot) { var id = o.equipped[slot]; if (ITEM[id] && ITEM[id].slot === slot && s.owned[id]) s.equipped[slot] = id; });
     if (BASE[o.base]) s.base = o.base;
+    if (o.profile && typeof o.profile === 'object') s.profile = { name: cleanName(o.profile.name), grade: GRADES.indexOf(String(o.profile.grade)) >= 0 ? String(o.profile.grade) : '', at: int(o.profile.at, 0, 1e14) };
+    if (typeof o.resetAt === 'string' && /^\d{4}-\d\d-\d\dT[\d:.]+Z$/.test(o.resetAt)) s.resetAt = o.resetAt;
     var seen = {}; s.results = s.results.filter(function (r) { if (seen[r.id]) return false; seen[r.id] = 1; return true; });
     return recompute(s);
   }
@@ -49,7 +58,7 @@
   function recordTest(s, t) {
     var id = String(t.id || ''); if (!id) throw new Error('test id required');
     if (s.awarded[id]) return { duplicate: true, points: 0, bonus: 0, total: s.points };
-    var total = int(t.total, 1, 100), score = int(t.score, 0, total), ch = int(t.ch, 1, 99), pct = percent(score, total);
+    var total = int(t.total, 1, 100), score = int(t.score, 0, total), ch = int(t.ch, 1, 199), pct = percent(score, total);
     var answered = t.answered === undefined ? total : int(t.answered, 0, total);
     var base = answered * 2 >= total ? pointsFor(pct) : 0;  /* effort points need at least half the questions answered */
     var before = s.earned; recompute(s);
@@ -64,10 +73,11 @@
         avg = Math.round(rs.reduce(function (a, r) { return a + r.pct; }, 0) / rs.length);
     return { taken: rs.length, best: best, latest: last, avg: avg, grade: grade(avg), bestGrade: grade(best.pct) };
   }
-  function overall(s) {
-    var n = s.results.length; if (!n) return { taken: 0 };
-    var avg = Math.round(s.results.reduce(function (a, r) { return a + r.pct; }, 0) / n);
-    return { taken: n, avg: avg, grade: grade(avg), chapters: Object.keys(s.results.reduce(function (a, r) { a[r.ch] = 1; return a; }, {})).length };
+  /* chapter ids: math chapters are 1-99, science units are 101-105 (100 + unit number). chs = optional list of ids to include */
+  function overall(s, chs) {
+    var rs = chs ? s.results.filter(function (r) { return chs.indexOf(r.ch) >= 0; }) : s.results, n = rs.length; if (!n) return { taken: 0 };
+    var avg = Math.round(rs.reduce(function (a, r) { return a + r.pct; }, 0) / n);
+    return { taken: n, avg: avg, grade: grade(avg), chapters: Object.keys(rs.reduce(function (a, r) { a[r.ch] = 1; return a; }, {})).length };
   }
   /* ---------- shop ---------- */
   function buy(s, id) {
@@ -122,91 +132,272 @@
     return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" class="av-svg" role="img" aria-label="' + (opts.label || 'Avatar: ' + b.name) + '">' +
       (eq.background ? layer('background') : '<rect width="200" height="200" fill="#f3f0ff"/>') + layer('cape') + '<g class="av-base">' + b.svg + '</g>' + layer('eyes') + layer('head') + layer('pet') + layer('effect') + '</svg>';
   }
-  /* ---------- storage ---------- */
-  var SKEY = 'alleyahHub.sync.v1';
+  /* ---------- profiles and storage ----------
+     SESSION = the signed-in username on this browser. DEVICES = this browser's quick-switch list of remembered profiles
+     (with a local copy of each profile's PIN check, so switching back needs no network). Progress for a profile is under
+     KEY + '.u.' + username; its sync settings under SKEY + '.u.' + username. KEY itself = old single-user data (migration). */
+  var SKEY = 'alleyahHub.sync.v1', SESSION = 'alleyahHub.session.v1', DEVICES = 'alleyahHub.devices.v1', LOCKS = 'alleyahHub.locks.v1',
+      BACKUP = KEY + '.backup', LATER = 'alleyahHub.migrate.later';
+  var USER_RE = /^[a-z0-9_-]{3,20}$/, PIN_RE = /^\d{4,6}$/;
   function storage() { try { var ls = root.localStorage; var t = '__t'; ls.setItem(t, t); ls.removeItem(t); return ls; } catch (e) { return null; } }
-  function load() { var ls = storage(); if (!ls) return fresh(); try { return sanitize(JSON.parse(ls.getItem(KEY) || 'null')); } catch (e) { return fresh(); } }
-  function save(s) { var ls = storage(); if (!ls) return false; ls.setItem(KEY, JSON.stringify(s)); return true; }
-  /* load -> change -> save, so two open tabs don't overwrite each other's newer data; then sync (if on) */
-  function update(fn) { var s = load(), r = fn(s); save(s); Sync.changed(); return r; }
-  function exportJSON() { var s = load(); return JSON.stringify({ app: 'alleyah-learning-hub', exported: new Date().toISOString(), progress: s }, null, 1); }
+  function getJ(k, d) { var ls = storage(); if (!ls) return d; try { var v = JSON.parse(ls.getItem(k) || 'null'); return v == null ? d : v; } catch (e) { return d; } }
+  function setJ(k, v) { var ls = storage(); if (ls) ls.setItem(k, JSON.stringify(v)); }
+  function del(k) { var ls = storage(); if (ls) ls.removeItem(k); }
+  function user() { var x = getJ(SESSION, null); return x && typeof x.u === 'string' && USER_RE.test(x.u) ? x.u : ''; }
+  function pkey(u) { u = u === undefined ? user() : u; return u ? KEY + '.u.' + u : ''; }
+  function skey(u) { u = u === undefined ? user() : u; return u ? SKEY + '.u.' + u : ''; }
+  /* saving scores, points and items needs a signed-in profile (pages stay readable without one) */
+  function canSave() { return !!user() && !!storage(); }
+  function load(u) { var k = pkey(u), ls = storage(); if (!k || !ls) return fresh(); try { return sanitize(JSON.parse(ls.getItem(k) || 'null')); } catch (e) { return fresh(); } }
+  function save(s, u) { var k = pkey(u), ls = storage(); if (!k || !ls) return false; ls.setItem(k, JSON.stringify(s)); return true; }
+  /* load -> change -> save, so two open tabs don't overwrite each other's newer data; then sync. Signed out: nothing is saved. */
+  function update(fn) { var s = load(), r = fn(s); if (canSave()) { save(s); Sync.changed(); } return r; }
+  function exportJSON() { var s = load(); return JSON.stringify({ app: 'the-tutor', user: user(), exported: new Date().toISOString(), progress: s }, null, 1); }
   function importJSON(text) {
+    if (!canSave()) throw new Error('Log in to a profile first, then import the backup into it.');
     var o = JSON.parse(text); var p = o && o.progress ? o.progress : o;
     if (!p || typeof p !== 'object' || !Array.isArray(p.results)) throw new Error('This file is not a progress backup from The Tutor.');
-    var s = sanitize(p); save(s); Sync.changed(); return s;
+    var cur = load(), s = sanitize(p), have = {}, at = new Date().toISOString(); cur.results.forEach(function (r) { have[r.id] = 1; });
+    s.results.forEach(function (r) { if (!have[r.id]) r.at = at; }); /* restoring a backup after a reset keeps its scores */
+    s.profile = cur.profile; s.resetAt = cur.resetAt; s.eqAt = Math.max(now(), cur.eqAt + 1); /* the backup's outfit wins */ s = merge(cur, s); save(s); Sync.changed(); return s;
   }
-  /* reset clears this device and turns sync off here (the synced copy stays, so other devices are not wiped) */
-  function reset() { var ls = storage(); if (ls) { ls.removeItem(KEY); ls.removeItem(SKEY); } }
+  /* reset this profile's scores, points and items everywhere (the reset syncs, so other devices drop the old data too) */
+  function reset() {
+    if (!canSave()) return false; var cur = load(), s = fresh(); s.profile = cur.profile; s.base = cur.base; s.eqAt = now(); s.resetAt = new Date().toISOString();
+    s.profile.at = cur.profile.at; save(s); Sync.changed(); return true;
+  }
 
-  /* ---------- cross-device sync (no account): one JSON record on the free public API at restful-api.dev ----------
-     Only test results (chapter, score, date, random test id), owned items and the avatar choice are sent. No names.
-     The sync code is the record id. Pull on page load (at most every 2 min), push after a test, purchase or avatar change. */
-  var API = 'https://api.restful-api.dev/objects', PREFIX = 'ff808181', TAG = 'alleyah-hub-progress';
-  function cfg() { var ls = storage(); try { return JSON.parse((ls && ls.getItem(SKEY)) || 'null') || {}; } catch (e) { return {}; } }
-  function setCfg(c) { var ls = storage(); if (ls) ls.setItem(SKEY, JSON.stringify(c)); emit(); return c; }
+  /* ---------- cross-device sync: one JSON record per profile on the free public API at restful-api.dev ----------
+     Sent: test results (chapter/unit, score, date, random test id), owned items, avatar, and the profile's display name and grade.
+     Page load pulls at most every PULL_MS; after a test or purchase it pushes (a single PUT if it pulled recently). */
+  var API = 'https://api.restful-api.dev/objects', TAG = 'alleyah-hub-progress', DIR_TAG = 'the-tutor-directory';
+  var DIR_ID = 'ff808181a09d98f701a166308c7b60a6'; /* set by study-guide-src/build.js from tutor-config.json */
+  function cfg(u) { return getJ(skey(u), {}) || {}; }
+  function setCfg(c, u) { var k = skey(u); if (k) setJ(k, c); emit(); return c; }
   function emit() { try { if (root.dispatchEvent && root.CustomEvent) root.dispatchEvent(new root.CustomEvent('progress:sync', { detail: cfg() })); } catch (e) { } }
-  function codeFromId(id) { id = String(id).toLowerCase(); var h = id.indexOf(PREFIX) === 0 && id.length === 32 ? id.slice(8) : id; return h.toUpperCase().match(/.{1,4}/g).join('-'); }
-  function idFromCode(code) { var h = String(code || '').toLowerCase().replace(/[^0-9a-f]/g, ''); if (h.length === 24) return PREFIX + h; if (h.length === 32) return h; return null; }
-  function payload(s) { return { name: TAG, data: { v: 1, results: s.results.map(function (r) { return { id: r.id, ch: r.ch, score: r.score, total: r.total, date: r.date, base: r.base }; }), owned: s.owned, equipped: s.equipped, base: s.base, eqAt: s.eqAt } }; }
-  function fromRemote(obj) { if (!obj || !obj.data || obj.name !== TAG) throw new Error('That sync code does not belong to this site.'); return sanitize(obj.data); }
+  function payload(s) { return { name: TAG, data: { v: 2, results: s.results.map(function (r) { var o = { id: r.id, ch: r.ch, score: r.score, total: r.total, date: r.date, base: r.base }; if (r.at) o.at = r.at; return o; }), owned: s.owned, equipped: s.equipped, base: s.base, eqAt: s.eqAt, profile: s.profile, resetAt: s.resetAt } }; }
+  function fromRemote(obj) { if (!obj || !obj.data || obj.name !== TAG) throw new Error('That record does not belong to this site.'); return sanitize(obj.data); }
   function req(method, url, body) {
     var f = Sync.fetch || root.fetch; if (!f) return Promise.reject(new Error('offline'));
+    Sync.requests++;
     return f.call(root, url, { method: method, headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' })
-      .then(function (r) { if (r.status === 404) { var e = new Error('No synced progress found for that code.'); e.notFound = true; throw e; } if (!r.ok) throw new Error('Sync service error ' + r.status + (r.status === 429 ? ' (daily limit reached; it will retry tomorrow)' : '')); return r.json(); });
+      .then(function (r) {
+        if (r.status === 404) { var e = new Error('Not found on the sync service.'); e.notFound = true; throw e; }
+        if (r.status === 429) { var l = new Error('The free sync service\u2019s daily limit was reached on this network. Your progress is saved here and will sync later.'); l.limit = true; throw l; }
+        if (!r.ok) throw new Error('Sync service error ' + r.status); return r.json();
+      });
   }
   function same(a, b) { return JSON.stringify(payload(a).data) === JSON.stringify(payload(b).data); }
-  var busy = null, timer = null;
-  function fail(e) { var c = cfg(); c.status = e && e.notFound ? 'missing' : 'offline'; c.error = String(e && e.message || e); c.dirty = true; setCfg(c); return { ok: false, error: c.error }; }
-  /* pull remote, merge with local, save; push back if local had anything the remote lacked */
-  function syncNow(force) {
-    var c = cfg(); if (!c.id) return Promise.resolve({ ok: false, error: 'Sync is off.' });
+  var busy = null, timer = null, BACKOFF = 3600000;
+  function fail(e, u) { var c = cfg(u); c.status = e && e.notFound ? 'missing' : e && e.limit ? 'limit' : 'offline'; c.error = String(e && e.message || e); c.dirty = true; if (e && e.limit) c.wait = Date.now() + BACKOFF; setCfg(c, u); return { ok: false, error: c.error }; }
+  function waiting(c) { return c.wait && Date.now() < c.wait; }
+  function done(u, c2, m) { c2.dirty = false; c2.status = 'ok'; c2.error = ''; c2.wait = 0; setCfg(c2, u); return { ok: true, state: m }; }
+  /* pull remote, merge with local, save; push back only if local had anything the remote lacked (1-2 requests) */
+  function syncNow() {
+    var u = user(), c = cfg(u); if (!u || !c.id) return Promise.resolve({ ok: false, error: 'Sync is off.' });
     if (busy) return busy;
     busy = req('GET', API + '/' + c.id).then(function (remote) {
-      var r = fromRemote(remote), m = merge(load(), r); save(m);
-      var c2 = cfg(); c2.lastPull = Date.now();
+      var r = fromRemote(remote), m = merge(load(u), r); save(m, u);
+      var c2 = cfg(u); c2.lastPull = Date.now();
       var push = !same(m, r) ? req('PUT', API + '/' + c.id, payload(m)).then(function () { c2.lastPush = Date.now(); }) : Promise.resolve();
-      return push.then(function () { c2.dirty = false; c2.status = 'ok'; c2.error = ''; setCfg(c2); return { ok: true, state: m }; });
-    }).catch(fail).then(function (x) { busy = null; return x; }, function (e) { busy = null; throw e; });
+      return push.then(function () { return done(u, c2, m); });
+    }).catch(function (e) { return fail(e, u); }).then(function (x) { busy = null; return x; });
     return busy;
   }
+  /* push only (1 request). Safe because merging is a union: if another device wrote since our last pull, it still has its
+     own copy and puts it back on its next sync. Used only when this device pulled within PULL_MS. */
+  function pushNow() {
+    var u = user(), c = cfg(u); if (!u || !c.id) return Promise.resolve({ ok: false, error: 'Sync is off.' });
+    if (busy) return busy;
+    var m = load(u);
+    busy = req('PUT', API + '/' + c.id, payload(m)).then(function () { var c2 = cfg(u); c2.lastPush = Date.now(); return done(u, c2, m); })
+      .catch(function (e) { return fail(e, u); }).then(function (x) { busy = null; return x; });
+    return busy;
+  }
+  function flushNow() { var c = cfg(); return c.lastPull && Date.now() - c.lastPull < Sync.PULL_MS ? pushNow() : syncNow(); }
   var Sync = {
-    fetch: null, API: API, codeFromId: codeFromId, idFromCode: idFromCode, payload: payload, config: cfg,
+    fetch: null, API: API, payload: payload, config: function () { return cfg(); }, requests: 0,
     enabled: function () { return !!cfg().id; },
-    code: function () { var c = cfg(); return c.id ? codeFromId(c.id) : ''; },
-    enable: function () {
-      if (cfg().id) return Promise.resolve({ ok: true, code: Sync.code() });
-      return req('POST', API, payload(load())).then(function (o) {
-        if (!o || !o.id) throw new Error('Sync service gave no id.');
-        setCfg({ id: String(o.id), status: 'ok', lastPush: Date.now(), lastPull: Date.now() }); return { ok: true, code: codeFromId(o.id) };
-      }).catch(function (e) { return { ok: false, error: 'Could not turn on sync: ' + (e.message || e) + '. Check the internet connection and try again.' }; });
-    },
-    link: function (code) {
-      var id = idFromCode(code); if (!id) return Promise.resolve({ ok: false, error: 'That code doesn\u2019t look right. It is 6 groups of 4 letters/numbers, like 1A2B-3C4D-...' });
-      return req('GET', API + '/' + id).then(function (remote) { fromRemote(remote); setCfg({ id: id, status: 'ok' }); return syncNow(true); })
-        .then(function (r) { return r.ok ? { ok: true, code: codeFromId(id), state: r.state } : r; })
-        .catch(function (e) { return { ok: false, error: e.message || String(e) }; });
-    },
-    disable: function () { var ls = storage(); if (ls) ls.removeItem(SKEY); emit(); },
     sync: syncNow,
-    /* called after every local change: push soon (debounced so several clicks cost one request pair) */
-    changed: function () { var c = cfg(); if (!c.id) return; c.dirty = true; setCfg(c); if (timer) clearTimeout(timer); timer = setTimeout(function () { timer = null; syncNow(); }, Sync.delay); },
-    delay: 1500,
-    /* page load: pull at most every 2 minutes, or right away if this device has unsynced changes */
-    auto: function () { var c = cfg(); if (!c.id) return Promise.resolve(null); if (!c.dirty && c.lastPull && Date.now() - c.lastPull < 120000) return Promise.resolve(null); return syncNow(); },
-    flush: function () { if (timer) { clearTimeout(timer); timer = null; return syncNow(); } return busy || Promise.resolve(null); }
+    /* called after every local change: push soon (debounced so several clicks cost one request) */
+    changed: function () { var c = cfg(); if (!c.id) return; c.dirty = true; setCfg(c); if (waiting(c)) return; if (timer) clearTimeout(timer); timer = setTimeout(function () { timer = null; flushNow(); }, Sync.delay); },
+    delay: 1500, PULL_MS: 15 * 60000,
+    /* page load: pull at most every PULL_MS (or right away if this device has unsynced changes); wait an hour after a 429 */
+    auto: function () { var c = cfg(); if (!user() || !c.id || waiting(c)) return Promise.resolve(null); if (!c.dirty && c.lastPull && Date.now() - c.lastPull < Sync.PULL_MS) return Promise.resolve(null); return c.dirty && c.lastPull && Date.now() - c.lastPull < Sync.PULL_MS ? pushNow() : syncNow(); },
+    flush: function () { if (timer) { clearTimeout(timer); timer = null; return flushNow(); } return busy || Promise.resolve(null); }
   };
   if (root.addEventListener && root.document) {
-    root.addEventListener('online', function () { if (cfg().dirty) syncNow(); });
-    root.addEventListener('pagehide', function () { if (timer) { clearTimeout(timer); timer = null; syncNow(); } });
+    root.addEventListener('online', function () { var c = cfg(); if (c.dirty && !waiting(c)) flushNow(); });
+    root.addEventListener('pagehide', function () { if (timer) { clearTimeout(timer); timer = null; flushNow(); } });
   }
+
+  /* ---------- profiles: sign up, log in, switch, log out ----------
+     The directory record (one shared record on restful-api.dev) maps username -> { s: salt, i: PBKDF2 iterations,
+     h: PIN check (PBKDF2-SHA-256), iv + r: the profile's record id encrypted with AES-GCM using a key from the same PBKDF2 run }.
+     This is LIGHTWEIGHT protection: a 4-6 digit PIN can be guessed offline by anyone who copies the public directory, and
+     anyone can edit or delete records on the free public API. It keeps classmates from casually using each other's profile. */
+  var ITER = 100000, LOCK_TRIES = 5, LOCK_MS = 30000;
+  function subtle() { var c = root.crypto || (typeof globalThis !== 'undefined' && globalThis.crypto); if (!c || !c.subtle) throw new Error('This browser can\u2019t do the PIN check (it needs a secure https page).'); return c; }
+  function b64(bytes) { var s = ''; bytes = new Uint8Array(bytes); for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]); return (root.btoa || function (x) { return Buffer.from(x, 'binary').toString('base64'); })(s); }
+  function unb64(t) { var s = (root.atob || function (x) { return Buffer.from(x, 'base64').toString('binary'); })(String(t)), a = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) a[i] = s.charCodeAt(i); return a; }
+  function hex(bytes) { return Array.prototype.map.call(new Uint8Array(bytes), function (x) { return (x < 16 ? '0' : '') + x.toString(16); }).join(''); }
+  function derive(u, pin, salt, iter) {
+    var c = subtle(), enc = new TextEncoder();
+    return c.subtle.importKey('raw', enc.encode(u + ':' + pin), 'PBKDF2', false, ['deriveBits'])
+      .then(function (k) { return c.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: salt, iterations: iter }, k, 512); })
+      .then(function (bits) { var b = new Uint8Array(bits); return c.subtle.importKey('raw', b.slice(32), 'AES-GCM', false, ['encrypt', 'decrypt']).then(function (key) { return { check: hex(b.slice(0, 32)), key: key }; }); });
+  }
+  function makeEntry(u, pin, recordId) {
+    var c = subtle(), salt = c.getRandomValues(new Uint8Array(16)), iv = c.getRandomValues(new Uint8Array(12));
+    return derive(u, pin, salt, ITER).then(function (d) {
+      return c.subtle.encrypt({ name: 'AES-GCM', iv: iv }, d.key, new TextEncoder().encode(recordId)).then(function (ct) { return { s: b64(salt), i: ITER, h: d.check, iv: b64(iv), r: b64(ct), at: new Date().toISOString() }; });
+    });
+  }
+  /* -> record id if the PIN is right, else null */
+  function openEntry(u, e, pin) {
+    if (!e || !e.s || !e.h) return Promise.resolve(null);
+    return derive(u, pin, unb64(e.s), int(e.i, 1000, 1e7)).then(function (d) {
+      var a = d.check, b = String(e.h), diff = a.length ^ b.length; for (var i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i % (b.length || 1));
+      if (diff) return null;
+      return subtle().subtle.decrypt({ name: 'AES-GCM', iv: unb64(e.iv) }, d.key, unb64(e.r)).then(function (pt) { return new TextDecoder().decode(pt); }, function () { return null; });
+    });
+  }
+  function dirUrl() { var id = Auth.DIR_ID; if (!id || /^__/.test(id)) throw new Error('Profiles are not set up on this copy of the site yet (no directory record).'); return API + '/' + id; }
+  function getDir() {
+    return Promise.resolve().then(dirUrl).then(function (url) { return req('GET', url); }).then(function (o) {
+      if (!o || o.name !== DIR_TAG || !o.data || typeof o.data.users !== 'object') throw new Error('The profile directory looks damaged.');
+      return o.data.users || {};
+    }, function (e) { if (e && e.notFound) throw new Error('The profile directory is missing from the sync service.'); throw e; });
+  }
+  function putDir(users) { return req('PUT', dirUrl(), { name: DIR_TAG, data: { v: 1, users: users } }); }
+  function normUser(x) { return String(x || '').trim().toLowerCase(); }
+  function devices() { var d = getJ(DEVICES, []); return Array.isArray(d) ? d.filter(function (x) { return x && USER_RE.test(x.u); }) : []; }
+  function remember(u, entry) {
+    var s = load(u), list = devices().filter(function (x) { return x.u !== u; }), old = devices().filter(function (x) { return x.u === u; })[0] || {};
+    list.unshift({ u: u, name: s.profile.name || u, base: s.base, e: entry || old.e }); setJ(DEVICES, list.slice(0, 12));
+  }
+  function setSession(u) { if (u) setJ(SESSION, { u: u, at: Date.now() }); else del(SESSION); try { root.dispatchEvent(new root.CustomEvent('progress:changed')); } catch (e) { } }
+  function locked(u) { var l = getJ(LOCKS, {})[u]; return l && l.until > Date.now() ? Math.ceil((l.until - Date.now()) / 1000) : 0; }
+  function failedTry(u) { var all = getJ(LOCKS, {}), l = all[u] || { n: 0 }; l.n++; if (l.n >= LOCK_TRIES) { l.until = Date.now() + LOCK_MS; l.n = 0; } all[u] = l; setJ(LOCKS, all); }
+  function clearTries(u) { var all = getJ(LOCKS, {}); delete all[u]; setJ(LOCKS, all); }
+  function err(m) { return { ok: false, error: m }; }
+  function checkFields(o, isNew) {
+    var u = normUser(o.username);
+    if (!USER_RE.test(u)) return 'Usernames are 3 to 20 letters, numbers, - or _ (no spaces).';
+    if (!PIN_RE.test(String(o.pin || ''))) return 'The PIN must be 4 to 6 digits.';
+    if (isNew) {
+      if (!cleanName(o.name)) return 'Please type a display name (a first name or nickname is enough).';
+      if (o.pin2 !== undefined && String(o.pin2) !== String(o.pin)) return 'The two PINs don\u2019t match.';
+      if (/^(\d)\1+$/.test(o.pin) || '0123456789'.indexOf(o.pin) >= 0 || '9876543210'.indexOf(o.pin) >= 0) return 'That PIN is too easy to guess. Avoid 1234 or 1111.';
+    }
+    return '';
+  }
+  /* the old single-user progress on this device (before profiles), if any */
+  function legacy() { var ls = storage(); if (!ls || !ls.getItem(KEY)) return null; var s; try { s = sanitize(JSON.parse(ls.getItem(KEY))); } catch (e) { return null; } if (!s.results.length && !Object.keys(s.owned).length) return null; return { state: s, tests: s.results.length, points: s.points, syncId: (getJ(SKEY, {}) || {}).id || '', later: !!getJ(LATER, false) }; }
+  function finishMigration() { var ls = storage(); if (!ls) return; var raw = ls.getItem(KEY); if (raw) ls.setItem(BACKUP, raw); ls.removeItem(KEY); ls.removeItem(SKEY); ls.removeItem(LATER); }
+  /* fold the old data (and whatever its old sync record held) into state s; costs 1 GET only if old sync was on */
+  function withLegacy(s) {
+    var L = legacy(); if (!L) return Promise.resolve(s);
+    var m = merge(s, L.state); m.profile = s.profile; m.base = s.base; m.eqAt = Math.max(s.eqAt, 1);
+    if (!L.syncId) return Promise.resolve(m);
+    return req('GET', API + '/' + L.syncId).then(function (o) { var r = merge(m, fromRemote(o)); r.profile = m.profile; r.base = m.base; r.eqAt = m.eqAt; return r; }, function () { return m; });
+  }
+  var Auth = {
+    DIR_ID: DIR_ID, USER_RE: USER_RE, PIN_RE: PIN_RE, GRADES: GRADES, ITER: ITER,
+    user: user, devices: devices, legacy: legacy, makeEntry: makeEntry, openEntry: openEntry, checkFields: checkFields,
+    later: function () { setJ(LATER, true); },
+    profile: function () { var u = user(); if (!u) return null; var s = load(u); return { username: u, name: s.profile.name || u, grade: s.profile.grade, base: s.base }; },
+    /* sign up: GET directory (name free?), POST the new progress record, GET directory again, PUT it with the new entry */
+    signUp: function (o) {
+      var bad = checkFields(o, true); if (bad) return Promise.resolve(err(bad));
+      var u = normUser(o.username), pin = String(o.pin), s = fresh(), recId = '';
+      s.profile = { name: cleanName(o.name), grade: GRADES.indexOf(String(o.grade)) >= 0 ? String(o.grade) : '', at: now() };
+      if (BASE[o.base]) { s.base = o.base; } s.eqAt = now();
+      return getDir().then(function (users) {
+        if (users[u]) throw new Error('The username \u201c' + u + '\u201d is taken. Please pick another one.');
+        return o.migrate ? withLegacy(s) : s;
+      }).then(function (st) { s = st; return req('POST', API, payload(s)); }).then(function (rec) {
+        if (!rec || !rec.id) throw new Error('The sync service gave no record id.'); recId = String(rec.id);
+        return getDir(); /* re-read right before writing, so a profile made a moment ago on another device is not lost */
+      }).then(function (users) {
+        if (users[u]) { req('DELETE', API + '/' + recId).catch(function () { }); throw new Error('The username \u201c' + u + '\u201d was just taken. Please pick another one.'); }
+        return makeEntry(u, pin, recId).then(function (entry) { users[u] = entry; return putDir(users).then(function () { return entry; }); });
+      }).then(function (entry) {
+        save(s, u); setCfg({ id: recId, status: 'ok', lastPull: Date.now(), lastPush: Date.now() }, u);
+        if (o.migrate) finishMigration();
+        remember(u, entry); clearTries(u); setSession(u); return { ok: true, user: u };
+      }).catch(function (e) { return err(e.message || String(e)); });
+    },
+    /* log in: check the PIN against this device's saved copy first (no network); otherwise GET the directory.
+       Then pull the profile's record (GET, plus a PUT only if this device had something new). */
+    logIn: function (o) {
+      var bad = checkFields(o, false); if (bad) return Promise.resolve(err(bad));
+      var u = normUser(o.username), pin = String(o.pin), wait = locked(u);
+      if (wait) return Promise.resolve(err('Too many wrong PINs. Wait ' + wait + ' seconds and try again.'));
+      var mine = devices().filter(function (x) { return x.u === u; })[0], entry = null, viaLocal = false;
+      return (mine && mine.e ? openEntry(u, mine.e, pin) : Promise.resolve(null)).then(function (id) {
+        if (id) { viaLocal = true; entry = mine.e; return id; }
+        return getDir().then(function (users) {
+          entry = users[u]; if (!entry) { failedTry(u); throw new Error('No profile called \u201c' + u + '\u201d. Check the spelling or sign up.'); }
+          return openEntry(u, entry, pin);
+        });
+      }).then(function (id) {
+        if (!id) { failedTry(u); throw new Error('Wrong PIN for \u201c' + u + '\u201d.'); }
+        clearTries(u); var c = cfg(u); if (c.id !== id) c = { id: id }; setCfg(c, u);
+        setSession(u);
+        var mig = o.migrate ? withLegacy(load(u)).then(function (m) { var cur = load(u); m.profile = cur.profile; m.base = cur.base; m.eqAt = cur.eqAt; save(merge(cur, m), u); finishMigration(); var c2 = cfg(u); c2.dirty = true; c2.lastPull = 0; setCfg(c2, u); }) : Promise.resolve();
+        return mig.then(function () { return viaLocal ? Sync.auto() : syncNow(); });
+      }).then(function (r) {
+        remember(u, entry); setSession(u);
+        return { ok: true, user: u, synced: !!(r && r.ok), warning: r && r.ok === false ? r.error : '' };
+      }).catch(function (e) { return err(e.message || String(e)); });
+    },
+    /* switch user: sign out here but stay in the quick-switch list */
+    switchUser: function () { return Sync.flush().then(function () { setSession(''); return { ok: true }; }); },
+    /* log out: optionally forget the profile on this device (its progress stays in the cloud record) */
+    logOut: function (forget) {
+      var u = user();
+      return Sync.flush().then(function () {
+        if (forget && u) { setJ(DEVICES, devices().filter(function (x) { return x.u !== u; })); if (!cfg(u).dirty) { del(pkey(u)); del(skey(u)); } }
+        setSession(''); return { ok: true };
+      });
+    },
+    /* display name, grade, starter character: saved in the profile's own record (no directory call) */
+    updateProfile: function (o) {
+      var u = user(); if (!u) return err('Log in first.'); var name = cleanName(o.name);
+      if (!name) return err('Please type a display name.');
+      update(function (s) { s.profile = { name: name, grade: GRADES.indexOf(String(o.grade)) >= 0 ? String(o.grade) : '', at: now() }; if (o.base && o.base !== s.base) setBase(s, o.base); });
+      remember(u); setSession(u); return { ok: true };
+    },
+    /* change PIN: GET directory, check the old PIN against it, PUT the new entry (2 requests) */
+    changePin: function (oldPin, newPin, newPin2) {
+      var u = user(); if (!u) return Promise.resolve(err('Log in first.'));
+      var bad = checkFields({ username: u, pin: newPin, pin2: newPin2, name: 'x' }, true); if (bad) return Promise.resolve(err(bad.replace('The PIN', 'The new PIN')));
+      var wait = locked(u); if (wait) return Promise.resolve(err('Too many wrong PINs. Wait ' + wait + ' seconds.'));
+      var users;
+      return getDir().then(function (us) { users = us; return openEntry(u, users[u], String(oldPin)); }).then(function (id) {
+        if (!id) { failedTry(u); throw new Error('Your current PIN is not right.'); }
+        return makeEntry(u, String(newPin), id);
+      }).then(function (entry) { users[u] = entry; return putDir(users).then(function () { remember(u, entry); clearTries(u); return { ok: true }; }); })
+        .catch(function (e) { return err(e.message || String(e)); });
+    }
+  };
+
   var api = { KEY: KEY, percent: percent, grade: grade, pointsFor: pointsFor, A_BONUS: A_BONUS, fresh: fresh, sanitize: sanitize, recordTest: recordTest,
-    chapterStats: chapterStats, merge: merge, recompute: recompute, Sync: Sync, overall: overall, buy: buy, equip: equip, unequip: unequip, setBase: setBase, BASE: BASE, SLOTS: SLOTS, ITEMS: ITEMS, ITEM: ITEM,
-    avatarSVG: avatarSVG, load: load, save: save, update: update, exportJSON: exportJSON, importJSON: importJSON, reset: reset, available: function () { return !!storage(); } };
+    chapterStats: chapterStats, merge: merge, recompute: recompute, Sync: Sync, Auth: Auth, overall: overall, buy: buy, equip: equip, unequip: unequip, setBase: setBase, BASE: BASE, SLOTS: SLOTS, ITEMS: ITEMS, ITEM: ITEM,
+    avatarSVG: avatarSVG, load: load, save: save, update: update, exportJSON: exportJSON, importJSON: importJSON, reset: reset, canSave: canSave, user: user,
+    storageKey: function () { return pkey(); }, isStateKey: function (k) { return k === SESSION || (!!pkey() && k === pkey()); }, available: function () { return !!storage(); } };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else {
     root.Progress = api;
-    /* pull from sync on every page load; tell pages to redraw when merged data arrives */
-    var start = function () { Sync.auto().then(function (r) { if (r && r.ok) try { root.dispatchEvent(new root.CustomEvent('progress:changed')); } catch (e) { } }); };
+    /* pull from sync on page load; tell pages to redraw when merged data arrives; show who is signed in in the menu */
+    var account = function () {
+      var p = Auth.profile(); Array.prototype.forEach.call(root.document.querySelectorAll('a.nav-account'), function (a) {
+        a.textContent = p ? '\ud83d\udc64 ' + p.name : '\ud83d\udd11 Log in'; a.href = p ? 'login.html#profile' : 'login.html'; a.title = p ? 'Signed in as ' + p.username + ' \u2014 profile, switch user, log out' : 'Log in or make a profile';
+      });
+    };
+    var start = function () { account(); Sync.auto().then(function (r) { if (r && r.ok) try { root.dispatchEvent(new root.CustomEvent('progress:changed')); } catch (e) { } }); };
+    if (root.addEventListener) root.addEventListener('progress:changed', function () { if (root.document && root.document.body) account(); });
     if (root.document && root.document.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', start); else if (root.document) start();
   }
 })(typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : this);

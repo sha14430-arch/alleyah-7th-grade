@@ -4,16 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Home | The Tutor</title>
-<link rel="stylesheet" href="styles.css?v=59b46a09">
+<link rel="stylesheet" href="styles.css?v=c9a33e86">
 </head>
 <body style="--accent:#4f8cff">
 <header class="site-header">
   <a class="brand" href="index.html">⭐ The Tutor</a><p class="tagline">Learn it. Practice it. Ace it.</p>
-  <nav class="nav" aria-label="Main"><a href="index.html" class="active" aria-current="page">🏠 Home</a><a href="math.html">🔢 Math</a><a href="science.html">🔬 Science</a><a href="social-studies.html">🌍 Social Studies</a><a href="english.html">📚 English</a><a href="forensic-science.html">🕵️ Forensic Science</a><a href="dance.html">💃 Dance</a><a href="drawing-painting.html">🎨 Drawing &amp; Painting</a></nav>
+  <nav class="nav" aria-label="Main"><a href="index.html" class="active" aria-current="page">🏠 Home</a><a href="math.html">🔢 Math</a><a href="science.html">🔬 Science</a><a href="social-studies.html">🌍 Social Studies</a><a href="english.html">📚 English</a><a href="forensic-science.html">🕵️ Forensic Science</a><a href="dance.html">💃 Dance</a><a href="drawing-painting.html">🎨 Drawing &amp; Painting</a><a href="login.html" class="nav-account">🔑 Log in</a></nav>
 </header>
 <main class="container">
 <section class="hero">
-  <h1>Hi, Alleyah! 👋</h1>
+  <h1 id="tutor-hello">Hi there! 👋</h1>
+  <p class="tutor-login-prompt" id="tutor-login-prompt"><a class="pt-link" href="login.html">🔑 Log in or make a profile</a> to save your scores and points. Everything here is free to read without logging in.</p>
   <p class="hero-tagline"><strong>The Tutor</strong>: Learn it. Practice it. Ace it.</p>
   <p>Welcome to your 7th grade study space. Pick a subject below to get started.</p>
 </section>
@@ -24,12 +25,19 @@
 <div id="math-progress" data-chapters="[[1,&quot;Integers&quot;],[2,&quot;Rational Numbers&quot;],[3,&quot;Expressions and Equations&quot;],[4,&quot;Inequalities&quot;],[5,&quot;Ratios and Proportions&quot;],[6,&quot;Percents&quot;],[7,&quot;Constructions and Scale Drawings&quot;],[8,&quot;Circles and Area&quot;],[9,&quot;Surface Area and Volume&quot;],[10,&quot;Probability and Statistics&quot;],[11,&quot;Transformations&quot;],[12,&quot;Angles and Triangles&quot;],[13,&quot;Graphing and Writing Linear Equations&quot;],[14,&quot;Real Numbers and the Pythagorean Theorem&quot;],[15,&quot;Volume and Similar Solids&quot;],[16,&quot;Exponents and Scientific Notation&quot;]]">
 <div class="pr-body"><noscript><p>Turn on JavaScript to see your saved scores and points.</p></noscript></div>
 </div>
-<p class="pr-sub">Scores, points and your avatar are saved only in this browser on this device. Use Export to back them up or move them to another device.</p>
+<p class="pr-sub">Scores, points and your avatar are saved in your profile and sync to any device where you log in. Not logged in? You can still practise, but nothing is saved.</p>
+</section>
+<section class="panel pr-panel pr-sci" id="science-scores" aria-labelledby="science-scores-h" style="--accent:#2fbf71">
+<h2 id="science-scores-h">🔬 Science Test Scores</h2>
+<div id="science-progress" data-chapters="[[101,&quot;Ecology&quot;,&quot;A&quot;,1],[102,&quot;Geological Processes&quot;,&quot;B&quot;,2],[103,&quot;Chemistry of Materials&quot;,&quot;C&quot;,3],[104,&quot;Chemical Reactions&quot;,&quot;D&quot;,4],[105,&quot;Biomedical Engineering&quot;,&quot;E&quot;,5]]">
+<div class="pr-body"><noscript><p>Turn on JavaScript to see your saved scores.</p></noscript></div>
+</div>
+<p class="pr-sub">Science unit practice tests earn the same points as math. <a href="science.html#science-units">Go to Science units</a></p>
 </section>
 <!-- progress:end -->
 </main>
 <footer class="site-footer">Made for Alleyah · 7th Grade</footer>
-<script src="progress.js?v=e6ebc3f2"></script>
-<script src="progress-ui.js?v=4e4f06f1"></script>
+<script src="progress.js?v=b7daf205"></script>
+<script src="progress-ui.js?v=6bad16ac"></script>
 </body>
 </html>

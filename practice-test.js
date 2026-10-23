@@ -85,6 +85,10 @@
       if (timerBox.checked) result.appendChild(el('p', '', 'Time: ' + fmtTime(Date.now() - t0)));
       if (window.Progress) {
         try {
+          if (window.Progress.canSave && !window.Progress.canSave()) {
+            var nb = el('div', 'pt-points'), lp = el('p', '', 'You are not logged in, so this score was not saved and no points were added. '), la = el('a', 'pt-link', '🔑 Log in or make a profile');
+            la.href = 'login.html?next=' + encodeURIComponent(location.pathname.split('/').pop() || 'index.html'); lp.appendChild(la); nb.appendChild(lp); result.appendChild(nb);
+          } else {
           var rec = window.Progress.update(function (st) { return window.Progress.recordTest(st, { id: testId, ch: ch, score: score, total: items.length, answered: items.length - blank, date: new Date().toISOString() }); });
           var box = el('div', 'pt-points' + (rec.points + rec.bonus > 0 ? ' pt-celebrate' : ''));
           if (rec.duplicate) box.appendChild(el('p', '', 'This test was already saved.'));
@@ -97,6 +101,7 @@
           var links = el('p', 'pt-points-links'), a1 = el('a', 'pt-link', '🛍️ Spend points in the Avatar Shop'), a3 = el('a', '', '📊 See all my scores');
           a1.href = 'avatar.html'; a3.href = 'index.html#math-scores'; links.appendChild(a1); links.appendChild(document.createTextNode(' ')); links.appendChild(a3); box.appendChild(links);
           result.appendChild(box);
+          }
         } catch (e) { result.appendChild(el('p', 'pt-hint', 'Your score could not be saved in this browser (storage may be turned off).')); }
       }
       if (wrongList.length) { var p = el('p', '', 'Review: '); wrongList.forEach(function (n, k) { var a2 = el('a', '', '#' + n); a2.href = '#pt-t' + testNo + 'q' + n; p.appendChild(a2); if (k < wrongList.length - 1) p.appendChild(document.createTextNode(', ')); }); result.appendChild(p); }
