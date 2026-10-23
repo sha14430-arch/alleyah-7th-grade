@@ -1,6 +1,7 @@
 /* practice-test.js: Chapter Practice Test page (test-chapter-N.html).
    A brand-new random 20-question test is made every time the page loads and every time "New test" is pressed.
-   Nothing is saved or reused. Needs section-generators.js and chapter-tests.js. GENERATED from study-guide-src/test-src. */
+   Questions are never saved or reused. When a test is graded, its score is saved with progress.js (localStorage) and
+   points are awarded once per test instance (each render gets a new random id, so re-grading or reloading can't add points). Needs section-generators.js and chapter-tests.js. GENERATED from study-guide-src/test-src. */
 (function () {
   'use strict';
   document.addEventListener('DOMContentLoaded', function () {
@@ -12,14 +13,14 @@
     var list = root.querySelector('.pt-list'), form = root.querySelector('.pt-form'), result = root.querySelector('.pt-result'),
         submit = root.querySelector('.pt-submit'), newBtn = root.querySelectorAll('.pt-new'), msg = root.querySelector('.pt-msg'),
         timerBox = root.querySelector('.pt-timer-on'), clock = root.querySelector('.pt-clock'), printBtn = root.querySelector('.pt-print');
-    var items = [], graded = false, t0 = 0, tick = null, testNo = 0;
+    var items = [], testId = '', graded = false, t0 = 0, tick = null, testNo = 0;
     function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
     function fmtTime(ms) { var s = Math.floor(ms / 1000); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
     function startClock() { stopClock(); t0 = Date.now(); clock.textContent = '0:00'; if (timerBox.checked) tick = setInterval(function () { clock.textContent = fmtTime(Date.now() - t0); }, 1000); }
     function stopClock() { if (tick) clearInterval(tick); tick = null; }
     timerBox.addEventListener('change', function () { clock.hidden = !timerBox.checked; if (timerBox.checked && !graded) { if (!t0) t0 = Date.now(); tick = tick || setInterval(function () { clock.textContent = fmtTime(Date.now() - t0); }, 1000); } else if (!timerBox.checked) stopClock(); });
     function render() {
-      testNo++;
+      testNo++; testId = 'c' + ch + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
       try { items = CT.buildTest(ch, keys); } catch (e) {
         var stale = !window.SectionGenerators || typeof window.SectionGenerators.mk !== 'function' || !window.ChapterTests;
         msg.textContent = stale ? 'Your browser loaded an old copy of the question files. Do a hard refresh (Ctrl+Shift+R, or Cmd+Shift+R on a Mac) and the test will load.' : 'Something went wrong making the test. Press New test.';
@@ -82,6 +83,22 @@
       result.appendChild(el('h2', '', 'Score: ' + score + ' / ' + items.length + ' (' + pct + '%)'));
       result.appendChild(el('p', '', pct >= 90 ? 'Excellent work! 🌟' : pct >= 70 ? 'Nice job! Review the ones marked wrong below.' : 'Keep practicing. Read the step-by-step solutions below, then try a new test.'));
       if (timerBox.checked) result.appendChild(el('p', '', 'Time: ' + fmtTime(Date.now() - t0)));
+      if (window.Progress) {
+        try {
+          var rec = window.Progress.update(function (st) { return window.Progress.recordTest(st, { id: testId, ch: ch, score: score, total: items.length, answered: items.length - blank, date: new Date().toISOString() }); });
+          var box = el('div', 'pt-points' + (rec.points + rec.bonus > 0 ? ' pt-celebrate' : ''));
+          if (rec.duplicate) box.appendChild(el('p', '', 'This test was already saved.'));
+          else if (rec.points + rec.bonus > 0) {
+            var fx = el('span', 'pt-confetti'); fx.setAttribute('aria-hidden', 'true'); ['🎉', '⭐', '✨', '🎊', '🌟', '💫'].forEach(function (c) { fx.appendChild(el('i', '', c)); }); box.appendChild(fx);
+            box.appendChild(el('p', 'pt-points-big', '+' + (rec.points + rec.bonus) + ' points!'));
+            if (rec.bonus) box.appendChild(el('p', '', '🏅 Bonus +' + rec.bonus + ' for your first A on Chapter ' + ch + '!'));
+          } else box.appendChild(el('p', '', 'Answer at least half the questions to earn points.'));
+          box.appendChild(el('p', '', 'Score saved. Point balance: ' + rec.total + '.'));
+          var links = el('p', 'pt-points-links'), a1 = el('a', 'pt-link', '🛍️ Spend points in the Avatar Shop'), a3 = el('a', '', '📊 See all my scores');
+          a1.href = 'avatar.html'; a3.href = 'index.html#math-scores'; links.appendChild(a1); links.appendChild(document.createTextNode(' ')); links.appendChild(a3); box.appendChild(links);
+          result.appendChild(box);
+        } catch (e) { result.appendChild(el('p', 'pt-hint', 'Your score could not be saved in this browser (storage may be turned off).')); }
+      }
       if (wrongList.length) { var p = el('p', '', 'Review: '); wrongList.forEach(function (n, k) { var a2 = el('a', '', '#' + n); a2.href = '#pt-t' + testNo + 'q' + n; p.appendChild(a2); if (k < wrongList.length - 1) p.appendChild(document.createTextNode(', ')); }); result.appendChild(p); }
       result.scrollIntoView ? result.scrollIntoView({ behavior: 'smooth', block: 'start' }) : 0;
     }
